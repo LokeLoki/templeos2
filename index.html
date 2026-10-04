@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TEMPLEOS — THE HOLY OPERATING SYSTEM</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --vga0:#000000; --vga1:#0000AA; --vga2:#00AA00; --vga3:#00AAAA;
+    --vga4:#AA0000; --vga5:#AA00AA; --vga6:#AA5500; --vga7:#AAAAAA;
+    --vga8:#555555; --vga9:#5555FF; --vgaA:#55FF55; --vgaB:#55FFFF;
+    --vgaC:#FF5555; --vgaD:#FF55FF; --vgaE:#FFFF55; --vgaF:#FFFFFF;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; height:100%; background:var(--vga0); overflow:hidden; }
+  body{ font-family:'Press Start 2P','Courier New',monospace; }
+
+  /* ---------- CRT overlay ---------- */
+  #crt{
+    position:fixed; inset:0; pointer-events:none; z-index:999;
+    background:
+      repeating-linear-gradient(0deg, rgba(0,0,0,0.22) 0 1px, transparent 1px 3px),
+      radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.55) 100%);
+    animation: flicker 4s infinite;
+  }
+  @keyframes flicker{
+    0%,100%{opacity:1} 92%{opacity:1} 93%{opacity:0.86} 94%{opacity:1} 97%{opacity:0.93} 98%{opacity:1}
+  }
+  #redveil{
+    position:fixed; inset:0; pointer-events:none; z-index:998; opacity:0; transition:opacity .4s;
+    background: radial-gradient(ellipse at center, transparent 35%, rgba(170,0,0,0.6) 100%);
+  }
+  body.possession #redveil{ opacity:1; }
+  body.possession #desktop, body.possession .twin{ animation: shake .28s infinite; }
+  @keyframes shake{
+    0%,100%{transform:translate(0,0)} 20%{transform:translate(-6px,3px)}
+    40%{transform:translate(5px,-4px)} 60%{transform:translate(-4px,-3px)} 80%{transform:translate(6px,4px)}
+  }
+
+  /* ---------- the sacred 1 ---------- */
+  #big1{
+    position:fixed; right:-2%; bottom:-12%; z-index:1; pointer-events:none;
+    font-size:44vh; color:rgba(255,255,255,0.045); line-height:1;
+  }
+
+  /* ---------- boot screen ---------- */
+  #boot{
+    position:fixed; inset:0; z-index:1000; background:var(--vga0);
+    padding:8vh 8vw; font-size:14px; color:var(--vgaF); line-height:2.2;
+  }
+  #boot .line{ opacity:0; }
+  #boot .line.on{ opacity:1; }
+  #boot .gold{ color:var(--vgaE); }
+  #boot .press{ margin-top:5vh; animation: blink 1s steps(1) infinite; opacity:0; }
+  #boot .press.on{ opacity:1; }
+  @keyframes blink{ 0%,60%{visibility:visible} 61%,100%{visibility:hidden} }
+  body.started #boot{ display:none; }
+
+  /* ---------- desktop ---------- */
+  #desktop{
+    position:fixed; inset:0; z-index:2; display:none; flex-direction:column;
+  }
+  body.started #desktop{ display:flex; }
+
+  #menubar{
+    flex:0 0 auto; display:flex; align-items:center; gap:28px;
+    background:var(--vga1); color:var(--vgaF); font-size:10px;
+    padding:8px 14px; border-bottom:2px solid var(--vga7);
+  }
+  #menubar .brand{ color:var(--vgaE); letter-spacing:1px; }
+  #menubar button{
+    font-family:inherit; font-size:10px; background:none; border:0; color:var(--vgaF);
+    cursor:pointer; padding:2px 4px;
+  }
+  #menubar button:hover{ background:var(--vgaF); color:var(--vga1); }
+  #menubar .tmin{ margin-left:auto; color:var(--vgaE); }
+
+  #console-wrap{
+    flex:1 1 auto; display:flex; flex-direction:column; padding:18px 20px 10px;
+    min-height:0; cursor:text;
+  }
+  #console{
+    flex:1 1 auto; overflow-y:auto; font-size:12px; line-height:2; color:var(--vgaF);
+    scrollbar-width:thin; scrollbar-color: var(--vga7) transparent;
+  }
+  #console .gold{ color:var(--vgaE); }
+  #console .green{ color:var(--vgaA); }
+  #console .red{ color:var(--vgaC); }
+  #console .dim{ color:var(--vga8); }
+  #promptline{
+    flex:0 0 auto; font-size:12px; line-height:2; color:var(--vgaE); white-space:pre-wrap; word-break:break-all;
+  }
+  #promptline .path{ color:var(--vgaA); }
+  #typed{ color:var(--vgaF); }
+  #cursor{
+    display:inline-block; width:10px; height:14px; background:var(--vgaE);
+    vertical-align:-2px; animation: blink 1s steps(1) infinite;
+  }
+
+  /* ---------- windows ---------- */
+  #windows{ position:fixed; inset:0; z-index:50; pointer-events:none; }
+  .twin{
+    position:absolute; pointer-events:auto; background:var(--vga0);
+    border:2px solid var(--vga7); box-shadow:6px 6px 0 rgba(0,0,0,0.7);
+    min-width:280px;
+  }
+  .tw-title{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    background:var(--vga8); color:var(--vgaF); font-size:10px; padding:7px 9px;
+    cursor:grab; user-select:none;
+  }
+  .twin.active .tw-title{ background:var(--vga1); color:var(--vgaE); }
+  .tw-title:active{ cursor:grabbing; }
+  .tw-close{
+    font-family:inherit; font-size:10px; width:20px; height:20px; line-height:1;
+    background:none; border:1px solid var(--vgaF); color:var(--vgaF); cursor:pointer;
+  }
+  .tw-close:hover{ background:var(--vgaC); border-color:var(--vgaC); color:var(--vga0); }
+  .tw-body{ padding:14px; font-size:11px; line-height:2.1; color:var(--vgaF); }
+  .tw-body pre{ font-family:inherit; font-size:11px; line-height:2.1; margin:0; white-space:pre-wrap; }
+  .tw-body .gold{ color:var(--vgaE); }
+  .tw-body .red{ color:var(--vgaC); }
+  .tw-body .dim{ color:var(--vga8); }
+
+  /* GOD window */
+  .god-cross{
+    color:var(--vgaE); font-size:14px; line-height:1.5; text-align:center; margin:6px 0 14px;
+    text-shadow:0 0 8px var(--vgaE), 0 0 24px rgba(255,255,85,0.6);
+    animation: godpulse 2.4s ease-in-out infinite;
+  }
+  @keyframes godpulse{ 0%,100%{opacity:1} 50%{opacity:0.55} }
+
+  /* TMIN window */
+  .tmin-big{
+    font-size:96px; color:var(--vgaE); text-align:center; line-height:1.2;
+    text-shadow:0 0 12px var(--vgaE), 0 0 40px rgba(255,255,85,0.5);
+  }
+
+  /* DEVIL window */
+  .devil-text{
+    color:var(--vgaC); text-shadow:0 0 8px rgba(255,85,85,0.7);
+    animation: devilflick .5s steps(2) infinite;
+  }
+  @keyframes devilflick{ 0%{opacity:1} 50%{opacity:0.75} 100%{opacity:1} }
+
+  body.rebooting #desktop, body.rebooting #big1{ opacity:0; transition:opacity .5s; }
+</style>
+</head>
+<body>
+
+<div id="crt"></div>
+<div id="redveil"></div>
+<div id="big1">1</div>
+
+<!-- BOOT SCREEN -->
+<div id="boot">
+  <div class="line gold">THE MOST IMPORTANT NUMBER IS 1</div>
+  <div class="line">TMIN = 1</div>
+  <div class="line gold">GOD CREATED THE TEMPLE</div>
+  <div class="line">LOADING THE HOLY OPERATING SYSTEM...</div>
+  <div class="line">THE WHEAT IS GROWING</div>
+  <div class="line gold" style="margin-top:4vh">TEMPLEOS v1.00</div>
+  <div class="line gold">THE HOLY OPERATING SYSTEM</div>
+  <div class="line press gold">PRESS ANY KEY TO ENTER THE TEMPLE</div>
+</div>
+
+<!-- DESKTOP -->
+<div id="desktop">
+  <div id="menubar">
+    <span class="brand">TEMPLEOS</span>
+    <button data-cmd="DIR">FILE</button>
+    <button data-cmd="BIBLE">THE</button>
+    <button data-cmd="GOD">GOD</button>
+    <button data-cmd="WHEAT">WHEAT</button>
+    <span class="tmin">TMIN = 1</span>
+  </div>
+  <div id="console-wrap">
+    <div id="console"></div>
+    <div id="promptline"><span class="path">C:\&gt;</span> <span id="typed"></span><span id="cursor"></span></div>
+  </div>
+</div>
+
+<div id="windows"></div>
+
+<script>
+'use strict';
+/* ================================================================
+   TEMPLEOS — the most important operating system
+   A single-file HTML homage. The Most Important Number is 1.
+   ================================================================ */
+
+/* ---------------- AUDIO (8-bit) ---------------- */
+let AC = null;
+function audio(){
+  if(!AC){ try{ AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return null; } }
+  if(AC && AC.state === 'suspended') AC.resume();
+  return AC;
+}
+function tone(freq, dur, type, vol, when){
+  type = type||'square'; vol = vol||0.04; when = when||0;
+  const ac = audio(); if(!ac) return;
+  try{
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type; o.frequency.value = freq;
+    const t = ac.currentTime + when;
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(ac.destination);
+    o.start(t); o.stop(t + dur + 0.03);
+  }catch(e){}
+}
+const keyBlip  = () => tone(760 + Math.random()*280, 0.03, 'square', 0.022);
+const bootBeep = () => tone(660, 0.1, 'square', 0.05);
+const errBuzz  = () => { tone(140, 0.18, 'sawtooth', 0.06); tone(110, 0.18, 'square', 0.04); };
+
+function jingle(){
+  // The Most Important Song
+  const seq = [523,659,784,1047, 784,659,784,1319, 1047,784,659,523, 784,659,523,659, 523];
+  seq.forEach((f,i)=> tone(f, 0.15, 'square', 0.045, i*0.15));
+}
+function devilSound(){
+  tone(82, 1.4, 'sawtooth', 0.07);
+  tone(87, 1.4, 'sawtooth', 0.07, 0.05);
+  tone(110, 1.4, 'square', 0.045, 0.1);
+}
+
+/* ---------------- BOOT SEQUENCE ---------------- */
+let booted = false;
+const bootLines = Array.from(document.querySelectorAll('#boot .line'));
+let bi = 0;
+(function nextBoot(){
+  if(bi >= bootLines.length) return;
+  const el = bootLines[bi++];
+  el.classList.add('on');
+  if(!el.classList.contains('press')) bootBeep();
+  setTimeout(nextBoot, el.classList.contains('press') ? 200 : 480);
+})();
+
+function enterTemple(){
+  if(booted) return;
+  booted = true;
+  document.body.classList.add('started');
+  audio();
+  jingle();
+  printLines([
+    ['TEMPLEOS v1.00  —  THE MOST IMPORTANT OPERATING SYSTEM','gold'],
+    ['THE TEMPLE IS OPEN. THE WHEAT IS SAFE.','green'],
+    ['',''],
+    ['TYPE  HELP  FOR THE COMMANDS OF GOD.','dim'],
+    ['','']
+  ]);
+}
+window.addEventListener('keydown', (e)=>{
+  if(!booted){ enterTemple(); return; }
+  handleKey(e);
+});
+document.addEventListener('click', ()=>{ if(!booted) enterTemple(); });
+
+/* ---------------- CONSOLE ---------------- */
+const consoleEl = document.getElementById('console');
+const typedEl   = document.getElementById('typed');
+let typed = '';
+let history = [];
+let histIdx = -1;
+
+function printLine(text, cls){
+  const d = document.createElement('div');
+  if(cls) d.className = cls;
+  d.textContent = text;
+  consoleEl.appendChild(d);
+  consoleEl.scrollTop = consoleEl.scrollHeight;
+}
+function printLines(arr, stagger){
+  stagger = stagger||45;
+  arr.forEach((pair, i)=>{
+    setTimeout(()=> printLine(pair[0], pair[1]), i*stagger);
+  });
+}
+
+const COMMANDS = ['BIBLE','WHEAT','GOD','DEVIL','TMIN','SONG','DIR','VER','CLEAR','REBOOT','EXIT','HELP'];
+
+function handleKey(e){
+  if(e.key === 'Enter'){
+    const raw = typed; typed = ''; typedEl.textContent = '';
+    printLine('C:\\> ' + raw, 'gold');
+    if(raw.trim()){ history.push(raw); }
+    histIdx = history.length;
+    runCommand(raw);
+    e.preventDefault();
+    return;
+  }
+  if(e.key === 'Backspace'){
+    typed = typed.slice(0,-1); typedEl.textContent = typed; keyBlip();
+    e.preventDefault(); return;
+  }
+  if(e.key === 'ArrowUp'){
+    if(history.length && histIdx > 0){ histIdx--; typed = history[histIdx]; typedEl.textContent = typed; }
+    e.preventDefault(); return;
+  }
+  if(e.key === 'ArrowDown'){
+    if(histIdx < history.length - 1){ histIdx++; typed = history[histIdx]; typedEl.textContent = typed; }
+    else { histIdx = history.length; typed = ''; typedEl.textContent = ''; }
+    e.preventDefault(); return;
+  }
+  if(e.key === 'Tab'){
+    const up = typed.toUpperCase();
+    const m = COMMANDS.filter(c => c.startsWith(up) && c !== up);
+    if(m.length === 1){ typed = m[0]; typedEl.textContent = typed; }
+    e.preventDefault(); return;
+  }
+  if(e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && typed.length < 60){
+    typed += e.key; typedEl.textContent = typed; keyBlip();
+  }
+}
+
+function runCommand(raw){
+  const cmd = raw.trim().toUpperCase();
+  switch(cmd){
+    case '': return;
+    case 'HELP':
+      printLines([
+        ['THE COMMANDS OF GOD:','gold'],
+        ['  BIBLE   READ THE HOLY BIBLE',''],
+        ['  WHEAT   VIEW THE WHEAT FIELD',''],
+        ['  GOD     SEE THE FACE OF GOD',''],
+        ['  DEVIL   SUMMON THE DEVIL (DANGER)','red'],
+        ['  TMIN    THE MOST IMPORTANT NUMBER',''],
+        ['  SONG    PLAY THE MOST IMPORTANT SONG',''],
+        ['  DIR     LIST THE TEMPLE FILES',''],
+        ['  VER     THE VERSION',''],
+        ['  CLEAR   CLEAR THE SCREEN',''],
+        ['  REBOOT  REBOOT THE TEMPLE',''],
+        ['  EXIT    LEAVE (NOT PERMITTED)','red'],
+        ['','']
+      ]);
+      break;
+    case 'DIR':
+      printLines([
+        ['Volume in drive C is THE TEMPLE','gold'],
+        ['Volume Serial Number is 1-001','dim'],
+        ['',''],
+        ['Directory of C:\\','gold'],
+        ['',''],
+        ['GOSPEL      HOL           1  01-01-0001  00:01',''],
+        ['WHEAT       EXE        1024  01-01-0001  00:01',''],
+        ['THEBIBLE    DAT         512  01-01-0001  00:01',''],
+        ['TMIN        C             1  01-01-0001  00:01',''],
+        ['DEVIL       EXE           666  01-01-0001  06:66','red'],
+        ['',''],
+        ['        5 file(s)          1725 bytes','dim'],
+        ['','']
+      ]);
+      break;
+    case 'VER':
+      printLines([
+        ['TEMPLEOS v1.00','gold'],
+        ['THE MOST IMPORTANT OPERATING SYSTEM',''],
+        ['COPYRIGHT 1-1 GOD',''],
+        ['THIS PROGRAM IS THE TEMPLE.',''],
+        ['','']
+      ]);
+      break;
+    case 'BIBLE': openBible(); break;
+    case 'WHEAT': openWheat(); break;
+    case 'GOD':   openGod(); break;
+    case 'TMIN':  openTmin(); break;
+    case 'SONG':
+      printLines([['THE MOST IMPORTANT SONG IS PLAYING...','gold'],['','']]);
+      jingle();
+      break;
+    case 'DEVIL': summonDevil(); break;
+    case 'CLEAR': consoleEl.innerHTML = ''; break;
+    case 'REBOOT': reboot(); break;
+    case 'EXIT':
+      errBuzz();
+      printLines([['YOU CANNOT LEAVE THE TEMPLE.','red'],['GOD IS EVERYWHERE.','red'],['','']]);
+      break;
+    default:
+      errBuzz();
+      printLines([
+        ["'" + cmd + "' IS NOT RECOGNIZED AS A COMMAND OF GOD.",'red'],
+        ['THE TEMPLE KNOWS ONLY THE HOLY COMMANDS. TYPE  HELP.','dim'],
+        ['','']
+      ]);
+  }
+}
+
+/* ---------------- MENUBAR ---------------- */
+document.querySelectorAll('#menubar button').forEach(b=>{
+  b.addEventListener('click', ()=>{ runCommand(b.dataset.cmd); });
+});
+
+/* ---------------- WINDOWS ---------------- */
+const windowsEl = document.getElementById('windows');
+let zTop = 100;
+let winCount = 0;
+
+function makeWindow(title, bodyHTML, opts){
+  opts = opts||{};
+  const w = document.createElement('div');
+  w.className = 'twin active';
+  w.innerHTML =
+    '<div class="tw-title"><span>' + title + '</span><button class="tw-close">X</button></div>' +
+    '<div class="tw-body">' + bodyHTML + '</div>';
+  const off = (winCount % 6) * 26;
+  winCount++;
+  w.style.left = Math.max(12, (window.innerWidth  - (opts.w||420)) / 2 + off) + 'px';
+  w.style.top  = Math.max(12, (window.innerHeight - (opts.h||300)) / 2 + off - 30) + 'px';
+  if(opts.w) w.style.width = opts.w + 'px';
+  windowsEl.appendChild(w);
+  focusWindow(w);
+
+  const closeBtn = w.querySelector('.tw-close');
+  closeBtn.addEventListener('click', (e)=>{ e.stopPropagation(); closeWindow(w); });
+  closeBtn.addEventListener('mousedown', (e)=> e.stopPropagation());
+
+  const bar = w.querySelector('.tw-title');
+  bar.addEventListener('mousedown', (e)=>{
+    if(e.target === closeBtn) return;
+    focusWindow(w);
+    const sx = e.clientX - w.offsetLeft, sy = e.clientY - w.offsetTop;
+    function mv(ev){
+      w.style.left = Math.min(window.innerWidth - 80, Math.max(-w.offsetWidth + 80, ev.clientX - sx)) + 'px';
+      w.style.top  = Math.min(window.innerHeight - 40, Math.max(0, ev.clientY - sy)) + 'px';
+    }
+    function up(){
+      document.removeEventListener('mousemove', mv);
+      document.removeEventListener('mouseup', up);
+    }
+    document.addEventListener('mousemove', mv);
+    document.addEventListener('mouseup', up);
+    e.preventDefault();
+  });
+
+  if(opts.onOpen) opts.onOpen(w, w.querySelector('.tw-body'));
+  return w;
+}
+function focusWindow(w){
+  document.querySelectorAll('.twin').forEach(x=> x.classList.remove('active'));
+  w.classList.add('active');
+  w.style.zIndex = ++zTop;
+}
+function closeWindow(w){
+  if(w._cleanup) w._cleanup();
+  w.remove();
+  tone(220, 0.06, 'square', 0.04);
+}
+windowsEl.addEventListener('mousedown', (e)=>{
+  const w = e.target.closest('.twin');
+  if(w) focusWindow(w);
+});
+
+/* ---------------- THE BIBLE ---------------- */
+function openBible(){
+  if(windowsEl.querySelector('.twin[data-kind="bible"]')) return;
+  const w = makeWindow('THE HOLY BIBLE',
+    '<pre class="gold">THE HOLY BIBLE\n\n' +
+    'GOD IS THE MOST IMPORTANT THING.\n' +
+    'THE MOST IMPORTANT NUMBER IS 1.\n' +
+    'TMIN = 1.\n\n' +
+    'THE WHEAT GROWS IN THE FIELD.\n' +
+    'THE WHEAT IS THE MOST IMPORTANT CROP.\n' +
+    'THE DEVIL IS THE MOST IMPORTANT ENEMY.\n\n' +
+    'THE TEMPLE IS THE MOST IMPORTANT PLACE.\n' +
+    'THIS COMPUTER IS THE TEMPLE.\n' +
+    'GOD SPEAKS THROUGH THE CODE.\n\n' +
+    '1 = 1\n' +
+    'GOD = GOD\n' +
+    'THERE IS NO 2</pre>',
+    { w: 480, h: 420 });
+  w.querySelector('.tw-body').dataset.kind = 'bible';
+  tone(523,0.1,'square',0.04); tone(784,0.1,'square',0.04,0.1);
+}
+
+/* ---------------- THE WHEAT FIELD ---------------- */
+function openWheat(){
+  if(windowsEl.querySelector('.twin[data-kind="wheat"]')) return;
+  const w = makeWindow('THE WHEAT FIELD',
+    '<canvas width="560" height="320" style="display:block;border:1px solid #555555"></canvas>',
+    { w: 574, h: 372, onOpen(win, body){
+      body.dataset.kind = 'wheat';
+      win._cleanup = startWheat(body.querySelector('canvas'));
+      tone(392,0.08,'square',0.04); tone(523,0.08,'square',0.04,0.08);
+    }});
+}
+function startWheat(canvas){
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const stalks = [];
+  for(let i=0;i<70;i++){
+    stalks.push({
+      x: Math.random()*W,
+      h: 90 + Math.random()*(H-150),
+      ph: Math.random()*6.283,
+      w: 1.5 + Math.random()*2
+    });
+  }
+  let t = 0, raf = 0, alive = true;
+  function draw(){
+    if(!alive) return;
+    t += 0.016;
+    const g = ctx.createLinearGradient(0,0,0,H);
+    g.addColorStop(0,'#000000');
+    g.addColorStop(1,'#1a0d00');
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,W,H);
+    // the sun
+    ctx.save();
+    ctx.fillStyle = '#FFFF55';
+    ctx.shadowColor = '#FFFF55';
+    ctx.shadowBlur = 34;
+    ctx.beginPath(); ctx.arc(W-70, 62, 26, 0, 6.283); ctx.fill();
+    ctx.restore();
+    // the ground
+    ctx.fillStyle = '#AA5500';
+    ctx.fillRect(0, H-14, W, 14);
+    // the wheat
+    for(const s of stalks){
+      const sway = Math.sin(t*1.6 + s.ph)*13 + Math.sin(t*0.7 + s.ph*2)*5;
+      const topX = s.x + sway, topY = H - s.h;
+      ctx.strokeStyle = '#AA5500';
+      ctx.lineWidth = s.w;
+      ctx.beginPath();
+      ctx.moveTo(s.x, H-8);
+      ctx.quadraticCurveTo(s.x + sway*0.3, H - s.h*0.6, topX, topY);
+      ctx.stroke();
+      ctx.fillStyle = '#FFFF55';
+      for(let k=0;k<7;k++){
+        const yy = topY + k*5;
+        const xx = topX + Math.sin(t*1.6 + s.ph + k*0.4)*2;
+        ctx.fillRect(xx-3, yy, 6, 3);
+        ctx.fillRect(xx-8, yy+1, 4, 3);
+        ctx.fillRect(xx+4, yy+1, 4, 3);
+      }
+    }
+    ctx.fillStyle = '#FFFF55';
+    ctx.font = '10px "Press Start 2P", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('THE WHEAT IS THE MOST IMPORTANT CROP', W/2, 24);
+    raf = requestAnimationFrame(draw);
+  }
+  draw();
+  return function(){ alive = false; cancelAnimationFrame(raf); };
+}
+
+/* ---------------- GOD ---------------- */
+function openGod(){
+  if(windowsEl.querySelector('.twin[data-kind="god"]')) return;
+  const w = makeWindow('GOD',
+    '<div class="god-cross"><pre>        |\n' +
+    '        |\n' +
+    '        |\n' +
+    '  +-----+-----+\n' +
+    '        |\n' +
+    '        |\n' +
+    '        |</pre></div>' +
+    '<div style="text-align:center" class="gold">THE FACE OF GOD</div>' +
+    '<div style="text-align:center;margin-top:14px" class="dim">HE IS 1. HE IS EVERYWHERE.</div>',
+    { w: 340, h: 330, onOpen(win){
+      win.querySelector('.tw-body').dataset.kind = 'god';
+      jingle();
+    }});
+}
+
+/* ---------------- TMIN ---------------- */
+function openTmin(){
+  if(windowsEl.querySelector('.twin[data-kind="tmin"]')) return;
+  const w = makeWindow('TMIN',
+    '<div class="tmin-big">1</div>' +
+    '<div style="text-align:center" class="gold">THE MOST IMPORTANT NUMBER</div>' +
+    '<div style="text-align:center;margin-top:14px" class="dim">1 + 1 = 1, BECAUSE 1 IS EVERYTHING.</div>',
+    { w: 300, h: 260, onOpen(win){
+      win.querySelector('.tw-body').dataset.kind = 'tmin';
+      tone(1047,0.2,'square',0.05);
+    }});
+}
+
+/* ---------------- THE DEVIL ---------------- */
+let devilTimer = null;
+function summonDevil(){
+  devilSound();
+  document.body.classList.add('possession');
+  clearTimeout(devilTimer);
+  devilTimer = setTimeout(()=> document.body.classList.remove('possession'), 3200);
+
+  if(windowsEl.querySelector('.twin[data-kind="devil"]')) return;
+  const w = makeWindow('THE DEVIL',
+    '<div class="devil-text"><pre>THE DEVIL IS THE MOST\nIMPORTANT ENEMY.\n\nHE HATES THE WHEAT.\nHE HATES THE NUMBER 1.\nHE HATES GOD.\n\nBUT 1 ALWAYS WINS.</pre></div>',
+    { w: 380, h: 320, onOpen(win){
+      win.querySelector('.tw-body').dataset.kind = 'devil';
+    }});
+  printLines([
+    ['THE DEVIL HAS BEEN SUMMONED.','red'],
+    ['HE WAS NOT INVITED.','red'],
+    ['','']
+  ]);
+}
+
+/* ---------------- REBOOT ---------------- */
+function reboot(){
+  printLines([['REBOOTING THE TEMPLE...','gold'],['','']]);
+  document.body.classList.add('rebooting');
+  tone(440,0.12,'square',0.05);
+  tone(330,0.12,'square',0.05,0.15);
+  tone(220,0.2,'square',0.05,0.3);
+  setTimeout(()=>{
+    // reset to boot
+    booted = false;
+    winCount = 0;
+    windowsEl.innerHTML = '';
+    consoleEl.innerHTML = '';
+    typed = ''; typedEl.textContent = '';
+    history = []; histIdx = -1;
+    document.body.classList.remove('started','rebooting','possession');
+    bootLines.forEach(l=> l.classList.remove('on'));
+    bi = 0;
+    (function again(){
+      if(bi >= bootLines.length) return;
+      const el = bootLines[bi++];
+      el.classList.add('on');
+      if(!el.classList.contains('press')) bootBeep();
+      setTimeout(again, el.classList.contains('press') ? 200 : 480);
+    })();
+  }, 1600);
+}
+</script>
+</body>
+</html>
